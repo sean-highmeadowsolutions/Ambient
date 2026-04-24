@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ambient</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,200;9..144,300;9..144,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background: #0a0a0c;
+    font-family: 'DM Sans', sans-serif;
+    color: #f5f2ea;
+    -webkit-font-smoothing: antialiased;
+    cursor: default;
+  }
+
+  .stage {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+  }
+
+  .slide {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    opacity: 0;
+    transition: opacity 2.2s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: opacity, transform;
+  }
+
+  .slide.active {
+    opacity: 1;
+    animation: kenburns 45s ease-in-out forwards;
+  }
+
+  @keyframes kenburns {
+    0%   { transform: scale(1.0)  translate(0, 0); }
+    100% { transform: scale(1.12) translate(-1.5%, -1%); }
+  }
+
+  .scrim {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 2;
+    background:
+      radial-gradient(ellipse at 20% 80%, rgba(0,0,0,0.55) 0%, transparent 55%),
+      radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,0.35) 100%);
+  }
+
+  .grain {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 3;
+    opacity: 0.06;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  }
+
+  .clock {
+    position: fixed;
+    bottom: 56px;
+    left: 56px;
+    z-index: 10;
+    text-shadow: 0 2px 24px rgba(0,0,0,0.6), 0 0 40px rgba(0,0,0,0.3);
+    transition: opacity 0.5s ease;
+  }
+
+  .clock.hidden { opacity: 0; pointer-events: none; }
+
+  .time {
+    font-family: 'Fraunces', serif;
+    font-weight: 200;
+    font-size: clamp(72px, 10vw, 148px);
+    line-height: 0.9;
+    letter-spacing: -0.04em;
+    font-variation-settings: "opsz" 144, "SOFT" 100;
+  }
+
+  .time .colon {
+    display: inline-block;
+    animation: blink 2s ease-in-out infinite;
+    opacity: 0.85;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 0.85; }
+    50%      { opacity: 0.35; }
+  }
+
+  .date {
+    margin-top: 12px;
+    font-size: 14px;
+    font-weight: 400;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    opacity: 0.78;
+  }
+
+  .controls {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 20;
+    display: flex;
+    gap: 6px;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.4s ease, transform 0.4s ease;
+  }
+
+  body:hover .controls,
+  .controls:focus-within,
+  .settings.open ~ .controls {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .btn {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: rgba(12, 12, 14, 0.5);
+    backdrop-filter: blur(22px) saturate(1.4);
+    -webkit-backdrop-filter: blur(22px) saturate(1.4);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: rgba(245, 242, 234, 0.9);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition: all 0.2s ease;
+    font-family: inherit;
+    font-size: 14px;
+  }
+
+  .btn:hover {
+    background: rgba(20, 20, 24, 0.7);
+    border-color: rgba(255, 255, 255, 0.22);
+    transform: scale(1.05);
+  }
+
+  .btn:active { transform: scale(0.95); }
+
+  .btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
+  .settings {
+    position: fixed;
+    bottom: 78px;
+    right: 24px;
+    z-index: 30;
+    width: 300px;
+    padding: 22px 22px 18px;
+    background: rgba(12, 12, 14, 0.82);
+    backdrop-filter: blur(30px) saturate(1.5);
+    -webkit-backdrop-filter: blur(30px) saturate(1.5);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 14px;
+    opacity: 0;
+    transform: translateY(12px);
+    pointer-events: none;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+  }
+
+  .settings.open {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+
+  .settings h3 {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    opacity: 0.55;
+    margin-bottom: 18px;
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 0;
+    font-size: 13px;
+    font-weight: 400;
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .row:first-of-type { border-top: none; }
+
+  .row label { opacity: 0.85; }
+
+  select {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #f5f2ea;
+    border-radius: 6px;
+    padding: 5px 8px;
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    outline: none;
+  }
+
+  select:hover { background: rgba(255, 255, 255, 0.1); }
+
+  .toggle {
+    position: relative;
+    width: 34px;
+    height: 19px;
+    background: rgba(255, 255, 255, 0.14);
+    border-radius: 19px;
+    cursor: pointer;
+    transition: background 0.2s;
+    flex-shrink: 0;
+  }
+
+  .toggle.on { background: rgba(245, 242, 234, 0.75); }
+
+  .toggle::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 15px;
+    height: 15px;
+    background: #0a0a0c;
+    border-radius: 50%;
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+
+  .toggle.on::after { transform: translateX(15px); background: #1a1a1e; }
+
+  .toggle:not(.on)::after { background: #f5f2ea; }
+
+  .hint {
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    opacity: 0.4;
+    margin-top: 14px;
+    line-height: 1.6;
+  }
+
+  .flash {
+    position: fixed;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-30px);
+    z-index: 40;
+    padding: 10px 18px;
+    background: rgba(12, 12, 14, 0.85);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 999px;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    opacity: 0;
+    transition: opacity 0.3s, transform 0.3s;
+  }
+
+  .flash.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+</style>
+</head>
+<body>
+  <div class="stage" id="stage"></div>
+  <div class="scrim"></div>
+  <div class="grain"></div>
+
+  <div class="clock" id="clock">
+    <div class="time" id="time">00<span class="colon">:</span>00</div>
+    <div class="date" id="date">—</div>
+  </div>
+
+  <div class="settings" id="settings">
+    <h3>Ambient</h3>
+    <div class="row">
+      <label for="sourceSelect">Source</label>
+      <select id="sourceSelect">
+        <option value="picsum">Picsum — random</option>
+        <option value="nature">Nature</option>
+        <option value="architecture">Architecture</option>
+        <option value="abstract">Abstract</option>
+        <option value="gradient">Gradients</option>
+      </select>
+    </div>
+    <div class="row">
+      <label for="intervalSelect">Interval</label>
+      <select id="intervalSelect">
+        <option value="60">1 min</option>
+        <option value="300">5 min</option>
+        <option value="600">10 min</option>
+        <option value="1800">30 min</option>
+        <option value="3600">1 hour</option>
+      </select>
+    </div>
+    <div class="row">
+      <label>Clock</label>
+      <div class="toggle" id="clockToggle" role="switch"></div>
+    </div>
+    <div class="row">
+      <label>Grayscale</label>
+      <div class="toggle" id="grayToggle" role="switch"></div>
+    </div>
+    <div class="hint">N next · P prev · Space pause · C clock · S settings</div>
+  </div>
+
+  <div class="controls">
+    <button class="btn" id="prevBtn" title="Previous (P)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+    <button class="btn" id="pauseBtn" title="Pause (Space)"><svg viewBox="0 0 24 24" id="pauseIcon"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg></button>
+    <button class="btn" id="nextBtn" title="Next (N)"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+    <button class="btn" id="settingsBtn" title="Settings (S)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+  </div>
+
+  <div class="flash" id="flash"></div>
+
+<script>
+  // ---------- Config via URL params ----------
+  const params = new URLSearchParams(location.search);
+  const state = {
+    interval: parseInt(params.get('interval')) || 600,
+    showClock: params.get('clock') !== '0',
+    source: params.get('source') || 'picsum',
+    grayscale: params.get('gray') === '1',
+    paused: false,
+    index: 0,
+  };
+
+  // ---------- Curated seeds for themed modes ----------
+  const SEEDS = {
+    nature: ['forest-canopy','redwood-mist','alpine-lake','ocean-cliff','autumn-aspen','dune-ridge','mossy-stream','waterfall-basin','fjord-dusk','meadow-dawn','bamboo-grove','glacier-blue','canyon-dusk','savanna-wind','kelp-forest','mountain-storm','birch-winter','coral-reef','tundra-light','cedar-path'],
+    architecture: ['kyoto-temple','roman-colonnade','brutalist-plaza','gothic-vault','modernist-atrium','moorish-arch','venetian-facade','tokyo-alley','parisian-rooftop','oxford-library','marrakech-riad','cast-iron-district','bauhaus-stair','mosque-ceiling','lighthouse-stone','monastery-cloister','cathedral-nave','adobe-pueblo','japanese-tearoom','stockholm-quay'],
+    abstract: ['liquid-marble','chromatic-drift','paper-folds','ink-bloom','silk-ripple','crystalline','prism-shift','smoke-veil','neon-mist','obsidian-flow','pearl-shimmer','copper-oxide','glacial-blue','velvet-fold','brass-patina','emerald-dust','inkwash-horizon','gilded-fracture','midnight-bloom','amber-resin']
+  };
+
+  const GRADIENTS = [
+    ['#0b1929','#1a3a5f','#4a7ba8'],
+    ['#1a0e1a','#432044','#b68aa6'],
+    ['#0d1f1a','#1f4738','#78a890'],
+    ['#1f1610','#4d2f1c','#c79870'],
+    ['#0f0f1f','#2a2a4a','#7a7aa8'],
+    ['#1f0f14','#4d1f2c','#c06880'],
+    ['#0c1d1d','#1a3d3d','#68a8a8'],
+    ['#1d1a0e','#4a3f1e','#bfa066'],
+    ['#140a1f','#321a4d','#8a68c0'],
+    ['#1f140a','#4d2f1a','#c08868'],
+  ];
+
+  // ---------- Rendering ----------
+  const stage = document.getElementById('stage');
+  let slides = [];
+  let rotateTimer;
+
+  function sourceFor(i) {
+    const w = Math.max(window.innerWidth, 1600);
+    const h = Math.max(window.innerHeight, 1000);
+    const gray = state.grayscale ? '?grayscale' : '';
+
+    if (state.source === 'gradient') {
+      const g = GRADIENTS[i % GRADIENTS.length];
+      const angle = (i * 37) % 360;
+      return { type: 'gradient', value: `linear-gradient(${angle}deg, ${g[0]} 0%, ${g[1]} 45%, ${g[2]} 100%)` };
+    }
+
+    if (SEEDS[state.source]) {
+      const list = SEEDS[state.source];
+      const seed = list[i % list.length] + '-' + Math.floor(i / list.length);
+      return { type: 'image', value: `https://picsum.photos/seed/${seed}/${w}/${h}${gray}` };
+    }
+
+    // random picsum
+    const r = Date.now() + '-' + i + '-' + Math.random().toString(36).slice(2, 8);
+    return { type: 'image', value: `https://picsum.photos/seed/${r}/${w}/${h}${gray}` };
+  }
+
+  function preload(url) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve();
+      img.onerror = reject;
+      img.src = url;
+    });
+  }
+
+  async function show(i) {
+    const src = sourceFor(i);
+    const slide = document.createElement('div');
+    slide.className = 'slide';
+
+    if (src.type === 'gradient') {
+      slide.style.background = src.value;
+    } else {
+      try {
+        await preload(src.value);
+        slide.style.backgroundImage = `url("${src.value}")`;
+      } catch {
+        // fall back to a gradient if image fails
+        const g = GRADIENTS[i % GRADIENTS.length];
+        slide.style.background = `linear-gradient(135deg, ${g[0]} 0%, ${g[1]} 50%, ${g[2]} 100%)`;
+      }
+    }
+
+    stage.appendChild(slide);
+    requestAnimationFrame(() => slide.classList.add('active'));
+
+    const old = slides;
+    slides = [slide];
+    setTimeout(() => old.forEach(s => s.remove()), 2400);
+  }
+
+  function next() {
+    state.index++;
+    show(state.index);
+    schedule();
+  }
+
+  function prev() {
+    state.index = Math.max(0, state.index - 1);
+    show(state.index);
+    schedule();
+  }
+
+  function schedule() {
+    clearTimeout(rotateTimer);
+    if (!state.paused) {
+      rotateTimer = setTimeout(next, state.interval * 1000);
+    }
+  }
+
+  // ---------- Clock ----------
+  const timeEl = document.getElementById('time');
+  const dateEl = document.getElementById('date');
+  const clockEl = document.getElementById('clock');
+
+  function tick() {
+    const d = new Date();
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    timeEl.innerHTML = `${hh}<span class="colon">:</span>${mm}`;
+    dateEl.textContent = d.toLocaleDateString(undefined, {
+      weekday: 'long', month: 'long', day: 'numeric'
+    });
+  }
+
+  function applyClock() {
+    clockEl.classList.toggle('hidden', !state.showClock);
+  }
+
+  // ---------- Controls ----------
+  const settings = document.getElementById('settings');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const pauseIcon = document.getElementById('pauseIcon');
+  const flash = document.getElementById('flash');
+
+  function flashMsg(text) {
+    flash.textContent = text;
+    flash.classList.add('show');
+    clearTimeout(flashMsg._t);
+    flashMsg._t = setTimeout(() => flash.classList.remove('show'), 1400);
+  }
+
+  document.getElementById('nextBtn').onclick = next;
+  document.getElementById('prevBtn').onclick = prev;
+
+  pauseBtn.onclick = () => {
+    state.paused = !state.paused;
+    pauseIcon.innerHTML = state.paused
+      ? '<polygon points="5 3 19 12 5 21 5 3"/>'
+      : '<rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/>';
+    flashMsg(state.paused ? 'Paused' : 'Resumed');
+    schedule();
+  };
+
+  document.getElementById('settingsBtn').onclick = () => settings.classList.toggle('open');
+
+  document.addEventListener('click', (e) => {
+    if (!settings.contains(e.target) && !e.target.closest('#settingsBtn')) {
+      settings.classList.remove('open');
+    }
+  });
+
+  // ---------- Settings bindings ----------
+  const clockToggle = document.getElementById('clockToggle');
+  const grayToggle = document.getElementById('grayToggle');
+  const sourceSelect = document.getElementById('sourceSelect');
+  const intervalSelect = document.getElementById('intervalSelect');
+
+  clockToggle.classList.toggle('on', state.showClock);
+  grayToggle.classList.toggle('on', state.grayscale);
+  sourceSelect.value = state.source;
+  intervalSelect.value = state.interval;
+
+  clockToggle.onclick = () => {
+    state.showClock = !state.showClock;
+    clockToggle.classList.toggle('on', state.showClock);
+    applyClock();
+  };
+
+  grayToggle.onclick = () => {
+    state.grayscale = !state.grayscale;
+    grayToggle.classList.toggle('on', state.grayscale);
+    show(state.index);
+  };
+
+  sourceSelect.onchange = (e) => {
+    state.source = e.target.value;
+    next();
+  };
+
+  intervalSelect.onchange = (e) => {
+    state.interval = parseInt(e.target.value);
+    schedule();
+    flashMsg('Interval updated');
+  };
+
+  // ---------- Keyboard ----------
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'SELECT') return;
+    switch (e.key.toLowerCase()) {
+      case ' ': e.preventDefault(); pauseBtn.click(); break;
+      case 'n': case 'arrowright': next(); break;
+      case 'p': case 'arrowleft': prev(); break;
+      case 'c': clockToggle.click(); flashMsg(state.showClock ? 'Clock on' : 'Clock off'); break;
+      case 's': settings.classList.toggle('open'); break;
+    }
+  });
+
+  // ---------- Init ----------
+  show(0);
+  schedule();
+  tick();
+  setInterval(tick, 1000);
+  applyClock();
+</script>
+</body>
+</html>
